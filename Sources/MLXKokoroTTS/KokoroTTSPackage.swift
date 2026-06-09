@@ -3,6 +3,7 @@ import MLXToolKit
 import MLX
 import MLXAudioTTS
 import MLXAudioCore
+import HuggingFace
 
 /// The second MLXEngine package: Kokoro-82M exposing the canonical `tts` surface.
 ///
@@ -51,9 +52,12 @@ public final class KokoroTTSPackage: ModelPackage {
     public func load() async throws {
         guard model == nil else { return }
         // `TTS.loadModel` auto-detects the architecture, attaches the Misaki G2P, and downloads +
-        // caches the weights from HF on first run. (Models-folder redirect is a follow-up — depends
-        // on mlx-audio exposing a custom Hub download base.)
-        model = try await TTS.loadModel(modelRepo: configuration.repo)
+        // caches the weights from HF on first run. When the engine has set a model-store root,
+        // redirect the Hub cache there (the caller holds security-scoped access) so weights land in
+        // the chosen models folder instead of the default container cache.
+        let cache: HubCache = configuration.modelsRootDirectory
+            .map { HubCache(cacheDirectory: $0) } ?? .default
+        model = try await TTS.loadModel(modelRepo: configuration.repo, cache: cache)
     }
 
     public func unload() async {
