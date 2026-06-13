@@ -16,7 +16,7 @@ let package = Package(
         .library(name: "MLXKokoroTTS", targets: ["MLXKokoroTTS"]),
     ],
     dependencies: [
-        .package(path: "../mlx-engine-swift"),
+        .package(url: "https://github.com/xocialize/mlx-engine-swift", from: "0.3.0"),
         // Kokoro runtime + G2P (pinned to the companion's known-good revision).
         .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git",
                  revision: "417df212f54b8b4214a9815c1cd2eabb05fd4fdf"),
