@@ -1,8 +1,7 @@
 import Foundation
 import MLXToolKit
 import MLX
-import MLXAudioTTS
-import MLXAudioCore
+import KokoroMLX
 import HuggingFace
 
 /// The second MLXEngine package: Kokoro-82M exposing the canonical `tts` surface.
@@ -17,7 +16,8 @@ public final class KokoroTTSPackage: ModelPackage {
 
     public nonisolated static var manifest: PackageManifest {
         PackageManifest(
-            // Kokoro-82M weights are Apache-2.0; the runtime port (mlx-audio-swift) is MIT.
+            // Kokoro-82M weights are Apache-2.0; the runtime port (kokoro-mlx-swift, vendored from
+            // Blaizzy/mlx-audio-swift) is MIT.
             license: LicenseDeclaration(weightLicense: .apache2, portCodeLicense: .mit),
             provenance: Provenance(sourceRepo: "mlx-community/Kokoro-82M-bf16", revision: "main", tier: 1),
             requirements: RequirementsManifest(
@@ -51,13 +51,20 @@ public final class KokoroTTSPackage: ModelPackage {
 
     public func load() async throws {
         guard model == nil else { return }
-        // `TTS.loadModel` auto-detects the architecture, attaches the Misaki G2P, and downloads +
-        // caches the weights from HF on first run. When the engine has set a model-store root,
-        // redirect the Hub cache there (the caller holds security-scoped access) so weights land in
-        // the chosen models folder instead of the default container cache.
+        // When the engine has set a model-store root, redirect the Hub cache there (the caller holds
+        // security-scoped access) so weights land in the chosen models folder instead of the default
+        // container cache.
         let cache: HubCache = configuration.modelsRootDirectory
             .map { HubCache(cacheDirectory: $0) } ?? .default
-        model = try await TTS.loadModel(modelRepo: configuration.repo, cache: cache)
+        // English-only v0.1.0: attach the misaki English G2P explicitly. (The upstream polymorphic
+        // `TTS.loadModel` defaulted to the multilingual processor, which the kokoro-mlx-swift core
+        // omits.) `fromPretrained` downloads + caches the weights and runs the processor's
+        // `prepare()` on first use.
+        model = try await KokoroModel.fromPretrained(
+            configuration.repo,
+            textProcessor: MisakiTextProcessor(),
+            cache: cache
+        )
     }
 
     public func unload() async {
