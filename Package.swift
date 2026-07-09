@@ -17,13 +17,14 @@ let package = Package(
         .library(name: "MLXKokoroTTS", targets: ["MLXKokoroTTS"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/xocialize/mlx-engine-swift", from: "0.3.0"),
+        // Bumped to 0.23.0 for the WeightSourcing auto-materialization contract (types ≥0.19.0).
+        .package(url: "https://github.com/xocialize/mlx-engine-swift", from: "0.23.0"),
         // Kokoro-82M runtime + misaki English G2P — our own vendored core, consumed by version
         // (no `revision:` pin, so this wrapper is version-consumable like every other in the roster).
         .package(url: "https://github.com/xocialize/kokoro-mlx-swift.git", from: "0.1.0"),
-        // HubCache, to redirect the model download into the engine's chosen models folder.
+        // HubClient — the native downloader for WeightSourcing auto-materialization.
         .package(url: "https://github.com/huggingface/swift-huggingface.git",
-                 .upToNextMajor(from: "0.8.1")),
+                 .upToNextMajor(from: "0.9.0")),
     ],
     targets: [
         .target(
@@ -45,6 +46,8 @@ let package = Package(
                 "MLXKokoroTTS",
                 // Test-only: admissibility sanity check through the engine.
                 .product(name: "MLXServeCore", package: "mlx-engine-swift"),
+                // The offline MAT-1..5 materialization gate.
+                .product(name: "MLXServeConformance", package: "mlx-engine-swift"),
             ]
         ),
     ]

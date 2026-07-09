@@ -4,6 +4,13 @@ import MLX
 import KokoroMLX
 import HuggingFace
 
+/// Errors specific to the Kokoro package boundary.
+public enum KokoroTTSError: Error, Equatable {
+    /// Weight sources are missing and there is no store root (or resolved directory) to
+    /// materialize into.
+    case missingWeights(String)
+}
+
 /// The second MLXEngine package: Kokoro-82M exposing the canonical `tts` surface.
 ///
 /// Engine-owned lifecycle (C13): the engine constructs from a `KokoroConfiguration`, pages weights
@@ -51,20 +58,28 @@ public final class KokoroTTSPackage: ModelPackage {
 
     public func load() async throws {
         guard model == nil else { return }
-        // When the engine has set a model-store root, redirect the Hub cache there (the caller holds
-        // security-scoped access) so weights land in the chosen models folder instead of the default
-        // container cache.
-        let cache: HubCache = configuration.modelsRootDirectory
-            .map { HubCache(cacheDirectory: $0) } ?? .default
+        // Auto-materialize missing sources into the engine store (dir-less configs only; explicit
+        // directories never touch the network), forwarding progress via WeightDownloadProgress so
+        // the engine's PreparationMonitor surfaces `.downloading`. Replaces the core's
+        // `fromPretrained` cache (`<root>/mlx-audio/<org>_<name>`) with the engine ModelStore
+        // layout (`<root>/<org>/<name>`).
+        let storeRoot = configuration.modelsRootDirectory
+        let missing = configuration.missingWeightSources(storeRoot: storeRoot)
+        if !missing.isEmpty {
+            guard let storeRoot else {
+                throw KokoroTTSError.missingWeights(
+                    "no models root set and sources missing: \(missing.map(\.role).joined(separator: ", "))")
+            }
+            try await WeightMaterializer.materialize(missing, into: storeRoot)
+        }
+        try Task.checkCancellation()
+        guard let dir = configuration.resolved(storeRoot: storeRoot).modelDirectory else {
+            throw KokoroTTSError.missingWeights("unresolved model directory (no store root)")
+        }
         // English-only v0.1.0: attach the misaki English G2P explicitly. (The upstream polymorphic
         // `TTS.loadModel` defaulted to the multilingual processor, which the kokoro-mlx-swift core
-        // omits.) `fromPretrained` downloads + caches the weights and runs the processor's
-        // `prepare()` on first use.
-        model = try await KokoroModel.fromPretrained(
-            configuration.repo,
-            textProcessor: MisakiTextProcessor(),
-            cache: cache
-        )
+        // omits.) The processor's `prepare()` runs on first use.
+        model = try await KokoroModel.fromModelDirectory(dir, textProcessor: MisakiTextProcessor())
     }
 
     public func unload() async {
