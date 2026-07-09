@@ -17,8 +17,9 @@ let package = Package(
         .library(name: "MLXKokoroTTS", targets: ["MLXKokoroTTS"]),
     ],
     dependencies: [
-        // Bumped to 0.23.0 for the WeightSourcing auto-materialization contract (types ≥0.19.0).
-        .package(url: "https://github.com/xocialize/mlx-engine-swift", from: "0.23.0"),
+        // Bumped to 0.27.0 for the CAN cancellation-conformance gate
+        // (MLXServeConformance.CancellationConformance).
+        .package(url: "https://github.com/xocialize/mlx-engine-swift", from: "0.27.0"),
         // Kokoro-82M runtime + misaki English G2P — our own vendored core, consumed by version
         // (no `revision:` pin, so this wrapper is version-consumable like every other in the roster).
         .package(url: "https://github.com/xocialize/kokoro-mlx-swift.git", from: "0.1.0"),

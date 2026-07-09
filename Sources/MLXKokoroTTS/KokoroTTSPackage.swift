@@ -87,11 +87,16 @@ public final class KokoroTTSPackage: ModelPackage {
     }
 
     public func run(_ request: any CapabilityRequest) async throws -> any CapabilityResponse {
+        // CAN-1: the entry checkpoint is the FIRST act of run() — before notLoaded validation
+        // (engine ≥ 0.27.0). Mid-run seams: Kokoro is non-autoregressive — the whole request is
+        // ONE ≤512-token forward chunk; the core's generate() checkpoints pre- and post-forward
+        // (KokoroModel.generate, throwing API, rethrown unchanged) and the wrapper checkpoints
+        // again post-synthesis below. No inner loop exists, so the cadence is per-chunk-coarse.
+        try Task.checkCancellation()
         guard let model else { throw PackageError.notLoaded }
         guard request.capability == .tts, let tts = request as? TTSRequest else {
             throw PackageError.unsupportedCapability(request.capability)
         }
-        try Task.checkCancellation()
 
         let voice = resolveVoice(tts.voice)
         let waveform = try await model.generate(
@@ -102,6 +107,8 @@ public final class KokoroTTSPackage: ModelPackage {
             language: nil,
             generationParameters: model.defaultGenerationParameters
         )
+        // Post-synthesis checkpoint: bail before the CPU-side sample pull + WAV encode.
+        try Task.checkCancellation()
         let samples = waveform.asType(.float32).asArray(Float.self) // 1-D mono
         let sampleRate = Int(model.sampleRate)
         let wav = Self.encodeWAV16(samples: samples, sampleRate: sampleRate)
